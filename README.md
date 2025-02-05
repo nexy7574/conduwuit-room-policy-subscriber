@@ -25,3 +25,9 @@ Usage of ./conduwuit-room-policy-subscriber:
   -url string
         The URL of the homeserver to connect to (default "https://matrix-client.matrix.org")
 ```
+
+You can set the log level by setting the `LOG_LEVEL` environment variable. The
+default is `info`.
+
+The bot will automatically subscribe to any policy room it is in. You will need to log in as the
+bot, or use conduwuit admin commands to join it to the rooms you want it to listen to.
