@@ -28,7 +28,6 @@ jobs:
           GOOS: ${{ matrix.os }}
       - name: Upload binary
         uses: actions/upload-artifact@v4
-        if: ${{ secrets.GITHUB_TOKEN }}
         with:
           name: conduwuit-room-policy-subscriber-${{ matrix.os }}-${{ matrix.arch }}
           path: out/*
