@@ -27,7 +27,7 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           GOOS: ${{ matrix.os }}
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ env.ACTIONS_RUNTIME_TOKEN }}
         with:
           name: conduwuit-room-policy-subscriber-${{ matrix.os }}-${{ matrix.arch }}
