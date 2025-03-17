@@ -10,6 +10,9 @@ conduwuit admin room to ban the room, and optionally also ban federation with it
 go install github.com/nexy7574/conduwuit-room-policy-subscriber@dev
 ```
 
+Or, get the per-commit artifacts pre-built on
+[nightly.link](https://nightly.link/nexy7574/conduwuit-room-policy-subscriber/workflows/build/dev?preview).
+
 ## Usage
 
 ```bash
