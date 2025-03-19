@@ -154,6 +154,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create client")
 	}
+	mau.Log = log.Logger
 	bot.Mau = mau
 	whoAmIResp, err := bot.Mau.Whoami(ctx)
 	if err != nil {
@@ -177,9 +178,18 @@ func main() {
 			log.Error().Err(err).Msg("failed to save banned rooms")
 		}
 	}
+	filter := mautrix.DefaultFilter()
+	filter.Room.Rooms = config.ListenTo
+	filter.Room.Timeline.Rooms = config.ListenTo
+	filter.Room.State.Rooms = config.ListenTo
 
 	syncer := bot.Mau.Syncer.(*mautrix.DefaultSyncer)
+	syncer.FilterJSON = &filter
 	syncer.OnEventType(event.StatePolicyRoom, bot.OnPolicyEvent)
+	syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
+		log.Trace().Str("since", since).Str("next_batch", resp.NextBatch).Msg("Completed sync.")
+		return true
+	})
 	log.Info().Msg("Synchronising ban states.")
 	for _, roomID := range config.ListenTo {
 		_, err = bot.Mau.JoinRoomByID(ctx, roomID)
