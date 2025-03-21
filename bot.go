@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	ubotUtil "github.com/nexy7574/ubot/util"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"maunium.net/go/mautrix"
@@ -19,7 +20,8 @@ import (
 
 var (
 	configPath     = flag.String("config", "config.json", "Path to config file")
-	logLevel       = flag.String("log-level", "info", "Log level (overrides config)")
+	dataDir        = flag.String("data-dir", "", "Path to data directory (overrides config)")
+	logLevel       = flag.String("log-level", "", "Log level (overrides config)")
 	dryRun         = flag.Bool("dry-run", false, "Don't issue any bans, just log them")
 	generateConfig = flag.Bool("generate-config", false, "Generate a config file with defaults")
 )
@@ -31,6 +33,23 @@ type Config struct {
 	ListenTo      []id.RoomID `json:"listen_to"`
 	LogLevel      string      `json:"log_level"`
 	LegacyVersion bool        `json:"legacy_version"`
+	DataDir       string      `json:"data_dir"`
+}
+
+func (c *Config) RealLogLevel() string {
+	if *logLevel != "" {
+		return *logLevel
+	}
+	return c.LogLevel
+}
+
+func (c *Config) RealDataDir() string {
+	if *dataDir != "" {
+		log.Trace().Str("config", c.DataDir).Str("flag", *dataDir).
+			Msg("Overriding configured data dir with runtime flag")
+		return *dataDir
+	}
+	return c.DataDir
 }
 
 func LoadConfig(path string) (config *Config, err error) {
@@ -163,7 +182,11 @@ func main() {
 	bot.Mau.UserID = whoAmIResp.UserID
 	bot.Mau.DeviceID = whoAmIResp.DeviceID
 	log.Info().Msgf("Logged in as %s (device ID: %s)", whoAmIResp.UserID, whoAmIResp.DeviceID)
-	bot.Mau.Store = mautrix.NewAccountDataStore("uk.co.nexy7574.cwt-policy-sub-next-sync", bot.Mau)
+	store, storeErr := ubotUtil.NewFileStore(".", bot.Mau)
+	if storeErr != nil {
+		log.Fatal().Err(storeErr).Msg("failed to create store")
+	}
+	bot.Mau.Store = store
 	if os.Getenv("RESET_NEXT_BATCH") != "" {
 		log.Warn().Msg("Resetting next batch for an initial sync")
 		err := bot.Mau.Store.SaveNextBatch(ctx, bot.Mau.UserID, "0")
@@ -187,6 +210,7 @@ func main() {
 	syncer.FilterJSON = &filter
 	syncer.OnEventType(event.StatePolicyRoom, bot.OnPolicyEvent)
 	syncer.OnSync(func(ctx context.Context, resp *mautrix.RespSync, since string) bool {
+		log.Trace().Interface("resp", resp).Msg("Synced")
 		log.Trace().Str("since", since).Str("next_batch", resp.NextBatch).Msg("Completed sync.")
 		return true
 	})
@@ -206,6 +230,7 @@ func main() {
 	}
 	log.Info().Msg("Starting to sync.")
 	if err = bot.Mau.SyncWithContext(ctx); err != nil {
-		log.Fatal().Err(err).Msg("failed to sync")
+		//log.Fatal().Err(err).Msg("failed to sync")
+		panic(err)
 	}
 }

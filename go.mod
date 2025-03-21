@@ -1,6 +1,8 @@
 module github.com/nexy7574/conduwuit-room-policy-subscriber
 
-go 1.23.4
+go 1.23.6
+
+toolchain go1.23.7
 
 require (
 	github.com/glebarez/go-sqlite v1.22.0
@@ -15,6 +17,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
+	github.com/nexy7574/ubot v0.0.0-20250321194247-efebc7b20b4d // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
@@ -30,4 +33,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.8.2 // indirect
 	modernc.org/sqlite v1.34.5 // indirect
+	mvdan.cc/sh/v3 v3.11.0 // indirect
 )
