@@ -10,6 +10,7 @@ import (
 	ubotUtil "github.com/nexy7574/ubot/util"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"io"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
@@ -103,6 +104,16 @@ func (bot *Bot) FindRoomWithHash(entity string) *id.RoomID {
 		response, err := bot.ProxyAPI.Get(bot.Config.RealProxyServer() + "/_conduwuit/rooms/list?page=" + fmt.Sprint(page))
 		if err != nil {
 			log.Error().Err(err).Msg("failed to fetch room list")
+			return nil
+		}
+		if response.StatusCode != 200 {
+			text := ""
+			if response.Body != nil {
+				raw, _ := io.ReadAll(response.Body)
+				text = string(raw)
+			}
+			response.Body.Close()
+			log.Error().Int("status", response.StatusCode).Str("body", text).Msg("failed to fetch room list!")
 			return nil
 		}
 		var responseBody []ProxyAPIRoom
