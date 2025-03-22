@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,10 +14,12 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
+	"net/http"
 	"os"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -64,12 +68,52 @@ func LoadConfig(path string) (config *Config, err error) {
 }
 
 type Bot struct {
-	Mau     *mautrix.Client
-	Config  *Config
-	BanLock *sync.Mutex
+	Mau      *mautrix.Client
+	Config   *Config
+	BanLock  *sync.Mutex
+	ProxyAPI *http.Client
 }
 type ExistingBans struct {
 	Existing []id.RoomID `json:"existing"`
+}
+type ProxyAPIRoom struct {
+	RoomID  id.RoomID `json:"room_id"`
+	Members int       `json:"members"`
+	Name    string    `json:"name"`
+}
+
+func (p *ProxyAPIRoom) HashedRoomID() string {
+	return hex.EncodeToString(sha256.New().Sum([]byte(p.RoomID.String())))
+}
+
+func (bot *Bot) FindRoomWithHash(entity string) *id.RoomID {
+	page := 0
+	for {
+		response, err := bot.ProxyAPI.Get(bot.Config.Homeserver + "/_conduwuit/rooms/list?page=" + fmt.Sprint(page))
+		if err != nil {
+			log.Error().Err(err).Msg("failed to fetch room list")
+			return nil
+		}
+		var responseBody []ProxyAPIRoom
+		err = json.NewDecoder(response.Body).Decode(&responseBody)
+		closeError := response.Body.Close()
+		if closeError != nil {
+		} // literally do not care, shut up linter
+		if err != nil {
+			log.Error().Err(err).Msg("failed to decode room list")
+			return nil
+		}
+		if len(responseBody) == 0 {
+			break
+		}
+		for _, room := range responseBody {
+			if room.HashedRoomID() == entity {
+				roomID := room.RoomID
+				return &roomID
+			}
+		}
+	}
+	return nil
 }
 
 func (bot *Bot) OnPolicyEvent(ctx context.Context, evt *event.Event) {
@@ -88,6 +132,18 @@ func (bot *Bot) OnPolicyEvent(ctx context.Context, evt *event.Event) {
 	if content == nil {
 		logger.Warn().Interface("event", evt).Msg("event doesn't have content!")
 		return
+	}
+	if content.Entity == "" && content.UnstableHashes != nil {
+		logger.Warn().Str("entity", content.EntityOrHash()).Msg(
+			"Received a hashed policy list event. Trying to resolve it...")
+		resolvedRoomID := bot.FindRoomWithHash(content.EntityOrHash())
+		if resolvedRoomID == nil {
+			logger.Warn().Str("entity", content.EntityOrHash()).Msg("Failed to resolve hashed entity!")
+			return
+		}
+		log.Info().Str("hashed_entity", content.EntityOrHash()).Str("resolved_entity", resolvedRoomID.String()).
+			Msg("Resolved hashed entity")
+		content.Entity = resolvedRoomID.String()
 	}
 	if !strings.HasPrefix(content.Entity, "!") {
 		logger.Warn().Str("entity", content.Entity).Msg("entity doesn't look like a room ID!")
@@ -108,7 +164,7 @@ func (bot *Bot) OnPolicyEvent(ctx context.Context, evt *event.Event) {
 		}
 	}
 
-	vias := []string{bot.Mau.UserID.Homeserver(), evt.Sender.Homeserver(), targetHS}
+	vias := []string{bot.Mau.UserID.Homeserver(), evt.Sender.Homeserver(), targetHS, "matrix.org"}
 	summary, err := bot.Mau.GetRoomSummary(ctx, targetID.String(), vias...)
 	if err != nil {
 		summary = &mautrix.RespRoomSummary{PublicRoomInfo: mautrix.PublicRoomInfo{RoomID: targetID}}
@@ -121,6 +177,7 @@ func (bot *Bot) OnPolicyEvent(ctx context.Context, evt *event.Event) {
 		PillSummary(*summary), targetID, evt.RoomID.EventURI(evt.ID, vias...), plRoom.Pill(), content.Reason,
 	)
 	noticeEvent := format.RenderMarkdown(notice, true, true)
+	noticeEvent.MsgType = "m.notice"
 	_, _ = bot.Mau.SendMessageEvent(ctx, bot.Config.AdminRoomID, event.EventMessage, noticeEvent)
 
 	command := "!admin rooms moderation ban-room " + targetID.String()
@@ -214,6 +271,10 @@ func main() {
 		log.Trace().Str("since", since).Str("next_batch", resp.NextBatch).Msg("Completed sync.")
 		return true
 	})
+
+	httpClient := &http.Client{Timeout: time.Second * 30}
+	bot.ProxyAPI = httpClient
+
 	log.Info().Msg("Synchronising ban states.")
 	for _, roomID := range config.ListenTo {
 		_, err = bot.Mau.JoinRoomByID(ctx, roomID)
