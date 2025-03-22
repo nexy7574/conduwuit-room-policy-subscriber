@@ -38,11 +38,22 @@ type Config struct {
 	LogLevel      string      `json:"log_level"`
 	LegacyVersion bool        `json:"legacy_version"`
 	DataDir       string      `json:"data_dir"`
+	ProxyAPI      string      `json:"proxy_api"`
+}
+
+func (c *Config) RealProxyServer() string {
+	if c.ProxyAPI == "" {
+		return c.Homeserver
+	}
+	return c.ProxyAPI
 }
 
 func (c *Config) RealLogLevel() string {
 	if *logLevel != "" {
 		return *logLevel
+	}
+	if c.LogLevel == "" {
+		return "info"
 	}
 	return c.LogLevel
 }
@@ -89,7 +100,7 @@ func (p *ProxyAPIRoom) HashedRoomID() string {
 func (bot *Bot) FindRoomWithHash(entity string) *id.RoomID {
 	page := 0
 	for {
-		response, err := bot.ProxyAPI.Get(bot.Config.Homeserver + "/_conduwuit/rooms/list?page=" + fmt.Sprint(page))
+		response, err := bot.ProxyAPI.Get(bot.Config.RealProxyServer() + "/_conduwuit/rooms/list?page=" + fmt.Sprint(page))
 		if err != nil {
 			log.Error().Err(err).Msg("failed to fetch room list")
 			return nil
