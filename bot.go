@@ -108,6 +108,7 @@ func (bot *Bot) FindRoomWithHash(entity string) *id.RoomID {
 			return nil
 		}
 		request.Header.Add("Authorization", "Bearer "+bot.Config.AccessToken)
+		log.Trace().Int("page", page).Str("entity", entity).Msg("fetching room list")
 		response, err := bot.ProxyAPI.Do(request)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to fetch room list")
@@ -141,6 +142,7 @@ func (bot *Bot) FindRoomWithHash(entity string) *id.RoomID {
 				return &roomID
 			}
 		}
+		page++
 	}
 	return nil
 }
