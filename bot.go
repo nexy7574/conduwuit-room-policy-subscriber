@@ -101,7 +101,14 @@ func (p *ProxyAPIRoom) HashedRoomID() string {
 func (bot *Bot) FindRoomWithHash(entity string) *id.RoomID {
 	page := 0
 	for {
-		response, err := bot.ProxyAPI.Get(bot.Config.RealProxyServer() + "/_conduwuit/admin/rooms/list?page=" + fmt.Sprint(page))
+		request, err := http.NewRequest(
+			"GET", bot.Config.RealProxyServer()+"/_conduwuit/admin/rooms/list?page="+fmt.Sprint(page), nil)
+		if err != nil {
+			log.Error().Err(err).Msg("failed to create request")
+			return nil
+		}
+		request.Header.Add("Authorization", "Bearer "+bot.Config.AccessToken)
+		response, err := bot.ProxyAPI.Do(request)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to fetch room list")
 			return nil
